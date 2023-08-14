@@ -1,0 +1,8 @@
+.venv
+.vscode
+notes.txt
+
+*.JPG
+*.jpg
+*.MP4
+*.mp4
