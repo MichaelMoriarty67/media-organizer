@@ -3,10 +3,7 @@ import os
 from datetime import datetime
 from PIL import Image
 from PIL.ExifTags import Base, TAGS
-
-SOURCE_DIR: str
-TARGET_DIR: str
-
+from pathlib import Path
 
 SOURCE_DIR = sys.argv[1] if len(sys.argv) > 2 else None
 TARGET_DIR = sys.argv[2] if len(sys.argv) > 2 else None
@@ -19,6 +16,7 @@ class Analytics:
 
 
 def file_date_from_os(file_path: str) -> str:
+    """Determine file creation date from the machine's OS."""
     creation_timestamp = None
 
     funcs = (os.path.getatime, os.path.getctime, os.path.getmtime)
@@ -84,12 +82,8 @@ def _get_file_type(file_path: str) -> str:
     return type
 
 
-def copy_move_rename_file(file_path: str, output_path: str) -> bool:
+def copy_move_rename_file(date: datetime, file_path: str, output_path: str) -> bool:
     # source creation date
-    date = min(
-        file_date_from_os(file_path),
-        file_date_from_img(file_path),
-    )  # TODO: this will break for vids
     breakpoint()
 
     # TODO: copy file, rename it, and place in output path
@@ -110,11 +104,46 @@ def _copy_binary_file(
     return
 
 
+def determine_date(file_path: str) -> datetime:
+    """Given a file, determines its creation date."""
+    date = file_date_from_os(file_path)
+
+    try:
+        img_date = file_date_from_img(file_path)
+
+        if img_date < date:
+            date = img_date
+
+    except Exception:
+        print("`determine_date` message: \nThat ain't no img!")
+        vid_date = file_date_from_vid(file_path)
+
+        if vid_date < date:
+            date = vid_date
+
+    return date
+
+
 if __name__ == "__main__":
-    print("WELCOME TO PICTURE ORGANIZER 7000.")
+    print("WELCOME TO PICTURE ORGANIZER 7000.\n")
+    try:
+        source_path = Path(SOURCE_DIR)
+        target_path = Path(TARGET_DIR)
+
+        # given dir, iterate through all files:
+        for file in os.listdir(source_path):
+            # determine date for each file
+            file_path = source_path / file
+            date = determine_date(file_path)
+
+            # copy, move, rename each file
+
+    except TypeError and FileNotFoundError:
+        print("Incorrect source or target path... please try again.")
+
+    # ***** TESTS *****
 
     # print(file_date_from_img("test_img_2.JPG"))
     # print(file_date_from_os("test_vid.MP4"))
-    # print(_copy_binary_file("test_vid.MP4", "new_vid.MP4"))
-    copy_move_rename_file("test_img_2.JPG", "null")
+    # print(_copy_binary_file("test_img_2.JPG", "new_img.JPG"))
     # write program instructions here...
