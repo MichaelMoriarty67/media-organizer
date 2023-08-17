@@ -82,15 +82,6 @@ def _get_file_type(file_path: str) -> str:
     return type
 
 
-def copy_move_rename_file(date: datetime, file_path: str, output_path: str) -> bool:
-    # copy file to new location
-    _copy_binary_file(file_path, output_path)
-
-    # check new file exists and rename it
-
-    return
-
-
 def _copy_binary_file(
     source_path: str,
     destination_path: str,
@@ -167,10 +158,3 @@ if __name__ == "__main__":
 
     except TypeError and FileNotFoundError:
         print("Incorrect source or target path... please try again.")
-
-    # ***** TESTS *****
-
-    # print(file_date_from_img("test_img_2.JPG"))
-    # print(file_date_from_os("test_vid.MP4"))
-    # print(_copy_binary_file("silly-faces-ties.jpeg", "new_img.JPG"))
-    # write program instructions here...
