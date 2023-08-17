@@ -36,7 +36,7 @@ def file_date_from_img(file_path: str) -> str:
     try:
         img = Image.open(file_path)
         named_exif = _get_exif_names(img.getexif())
-        print(f"keys and vals: {named_exif}")
+        print(f"img's keys and vals: {named_exif}")
 
         keys = ("DateTime", "DateTimeOriginal", "DateTimeDigitized")
         vals = [named_exif[key] for key in keys if key in named_exif]
@@ -83,10 +83,11 @@ def _get_file_type(file_path: str) -> str:
 
 
 def copy_move_rename_file(date: datetime, file_path: str, output_path: str) -> bool:
-    # source creation date
-    breakpoint()
+    # copy file to new location
+    _copy_binary_file(file_path, output_path)
 
-    # TODO: copy file, rename it, and place in output path
+    # check new file exists and rename it
+
     return
 
 
@@ -110,18 +111,24 @@ def determine_date(file_path: str) -> datetime:
 
     try:
         img_date = file_date_from_img(file_path)
+        # TODO: raises when img_date is None when no exif tags exist
 
-        if img_date < date:
+        if img_date is not None and img_date < date:
             date = img_date
 
     except Exception:
-        print("`determine_date` message: \nThat ain't no img!")
+        print("determine_date message: \nThat ain't no img!")
         vid_date = file_date_from_vid(file_path)
 
-        if vid_date < date:
+        if img_date is not None and vid_date < date:
             date = vid_date
 
     return date
+
+
+def _format_datetime(date: datetime) -> str:
+    frmt_date = date.strftime("%Y_%m_%d_%H_%M_%S")
+    return frmt_date
 
 
 if __name__ == "__main__":
@@ -133,10 +140,30 @@ if __name__ == "__main__":
         # given dir, iterate through all files:
         for file in os.listdir(source_path):
             # determine date for each file
-            file_path = source_path / file
-            date = determine_date(file_path)
+            source_file_path = source_path / file
+            print(f"file_path: {source_file_path}")
+            date = determine_date(source_file_path)
+
+            # check if year folder exists, if not, create
+            year_path = target_path / str(date.year)
+            month_path = year_path / str(date.month)
+
+            if not year_path.is_dir():
+                # create year dir
+                year_path.mkdir()
+                # create month dir
+                month_path.mkdir()
+
+            if not month_path.is_dir():
+                # create month dir
+                month_path.mkdir()
+
+            file_name = _format_datetime(date) + "." + _get_file_type(file)
+            breakpoint()
+            target_file_path = month_path / file_name
 
             # copy, move, rename each file
+            _copy_binary_file(source_file_path, target_file_path)
 
     except TypeError and FileNotFoundError:
         print("Incorrect source or target path... please try again.")
@@ -145,5 +172,5 @@ if __name__ == "__main__":
 
     # print(file_date_from_img("test_img_2.JPG"))
     # print(file_date_from_os("test_vid.MP4"))
-    # print(_copy_binary_file("test_img_2.JPG", "new_img.JPG"))
+    # print(_copy_binary_file("silly-faces-ties.jpeg", "new_img.JPG"))
     # write program instructions here...
