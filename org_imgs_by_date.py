@@ -5,7 +5,8 @@ from PIL import Image, UnidentifiedImageError
 from PIL.ExifTags import Base, TAGS
 from pathlib import Path
 from typing import Callable
-import pyheif
+
+# import pyheif
 
 SOURCE_DIR = sys.argv[1] if len(sys.argv) > 2 else None
 TARGET_DIR = sys.argv[2] if len(sys.argv) > 2 else None
@@ -38,16 +39,18 @@ def file_date_from_img(file_path: Path) -> datetime:
     img = None
 
     if _get_file_type(file_path.name) == "heic":
-        img_heif = pyheif.read(file_path)
+        # img_heif = pyheif.read(file_path)
 
-        img = Image.frombytes(
-            img_heif.mode,
-            img_heif.size,
-            img_heif.data,
-            "raw",
-            img_heif.mode,
-            img_heif.stride,
-        )
+        # img = Image.frombytes(
+        #     img_heif.mode,
+        #     img_heif.size,
+        #     img_heif.data,
+        #     "raw",
+        #     img_heif.mode,
+        #     img_heif.stride,
+        # )
+
+        print("heif... doing nothing w/ it right now \n")
 
         # TODO: extract exif data from .heic file
     else:
@@ -120,6 +123,8 @@ def _format_datetime(date: datetime) -> str:
 if __name__ == "__main__":
     print("WELCOME TO PICTURE ORGANIZER 7000.\n")
 
+    analytics = Analytics()
+
     try:
         source_path = Path(SOURCE_DIR)
         target_path = Path(TARGET_DIR)
@@ -147,9 +152,13 @@ if __name__ == "__main__":
                 target_file_path = month_path / file_name
                 _copy_binary_file(source_file_path, target_file_path)
 
+                analytics.images += 1
+
             except UnidentifiedImageError:
                 print("yea that ain't an  type we know chief...")
                 # add one to analytic fails
+
+                analytics.failed += 1
 
     except (TypeError, FileNotFoundError):
         print("Incorrect source or target path... please try again.")
