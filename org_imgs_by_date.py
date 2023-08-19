@@ -4,18 +4,37 @@ from datetime import datetime
 from PIL import Image, UnidentifiedImageError
 from PIL.ExifTags import Base, TAGS
 from pathlib import Path
-from typing import Callable
-
-# import pyheif
+import pyheif
 
 SOURCE_DIR = sys.argv[1] if len(sys.argv) > 2 else None
 TARGET_DIR = sys.argv[2] if len(sys.argv) > 2 else None
 
+VID_FORMATS = ["mov", "mp4"]
+
 
 class Analytics:
-    images: int
-    videos: int
-    failed: int
+    images: int = 0
+    videos: int = 0
+    unidentified: int = 0
+
+    def __str__(self) -> str:
+        return f"""SCRIPT ANALYTICS
+Images: {self.images}
+Videos: {self.videos}
+Unidentified: {self.unidentified}"""
+
+
+class UnidentifiedFromImg(Exception):
+    def __init__(self, path: Path):
+        self.path = path
+
+    def file_type(self):
+        file_type = _get_file_type(self.path.name)
+        return file_type
+
+    def get_path(self):
+        path = self.path if type(self.path) == "Path" else Path(self.path)
+        return path
 
 
 def file_date_from_os(file_path: Path) -> datetime:
@@ -38,23 +57,25 @@ def file_date_from_img(file_path: Path) -> datetime:
     creation_timestamp = None
     img = None
 
-    if _get_file_type(file_path.name) == "heic":
-        # img_heif = pyheif.read(file_path)
+    try:
+        if _get_file_type(file_path.name) == "heic":
+            img_heif = pyheif.read(file_path)
 
-        # img = Image.frombytes(
-        #     img_heif.mode,
-        #     img_heif.size,
-        #     img_heif.data,
-        #     "raw",
-        #     img_heif.mode,
-        #     img_heif.stride,
-        # )
+            img = Image.frombytes(
+                img_heif.mode,
+                img_heif.size,
+                img_heif.data,
+                "raw",
+                img_heif.mode,
+                img_heif.stride,
+            )
 
-        print("heif... doing nothing w/ it right now \n")
+            # TODO: extract exif data from .heic file
+        else:
+            img = Image.open(file_path)
 
-        # TODO: extract exif data from .heic file
-    else:
-        img = Image.open(file_path)
+    except UnidentifiedImageError:
+        raise UnidentifiedFromImg(file_path)
 
     named_exif = _get_exif_names(img.getexif())
     keys = ("DateTime", "DateTimeOriginal", "DateTimeDigitized")
@@ -120,6 +141,25 @@ def _format_datetime(date: datetime) -> str:
     return frmt_date
 
 
+def _prep_child_ouput_dir(root_output_dir: Path, date: datetime) -> Path:
+    """Using the root output dir, create a date structure and return the child
+    output directory's path."""
+
+    # construct target year and month dir paths
+    year_path = root_output_dir / str(date.year)
+    month_path = year_path / str(date.month)
+
+    # create target dir's if they don't exist
+    if not year_path.is_dir():
+        year_path.mkdir()
+        month_path.mkdir()
+
+    if not month_path.is_dir():
+        month_path.mkdir()
+
+    return month_path
+
+
 if __name__ == "__main__":
     print("WELCOME TO PICTURE ORGANIZER 7000.\n")
 
@@ -130,35 +170,40 @@ if __name__ == "__main__":
         target_path = Path(TARGET_DIR)
 
         for file in os.listdir(source_path):
+            # TODO: Clean up redundant code in try and except blocks
+
             try:
-                # get path to the soure file & it's date
+                # construct source file path &  find it's date
                 source_file_path = source_path / file
                 date = determine_date(source_file_path)
 
-                # construct target year and month dir paths
-                year_path = target_path / str(date.year)
-                month_path = year_path / str(date.month)
+                # construct MM/YY dir structure in target root dir
+                child_output_dir = _prep_child_ouput_dir(target_path, date)
 
-                # create target dir's if they don't exist
-                if not year_path.is_dir():
-                    year_path.mkdir()
-                    month_path.mkdir()
+                new_file_name = _format_datetime(date) + "." + _get_file_type(file)
+                target_file_path = child_output_dir / new_file_name
 
-                if not month_path.is_dir():
-                    month_path.mkdir()
-
-                # create target file path & copy bytes to it
-                file_name = _format_datetime(date) + "." + _get_file_type(file)
-                target_file_path = month_path / file_name
                 _copy_binary_file(source_file_path, target_file_path)
-
                 analytics.images += 1
 
-            except UnidentifiedImageError:
-                print("yea that ain't an  type we know chief...")
-                # add one to analytic fails
+            except UnidentifiedFromImg as e:
+                date = file_date_from_os(e.get_path())
 
-                analytics.failed += 1
+                child_output_dir = _prep_child_ouput_dir(target_path, date)
+
+                file_name = (
+                    _format_datetime(date) + "." + _get_file_type(e.get_path().name)
+                )
+                target_file_path = child_output_dir / file_name
+
+                _copy_binary_file(e.get_path(), target_file_path)
+                if e.file_type() in VID_FORMATS:
+                    analytics.videos += 1
+
+                else:
+                    analytics.unidentified += 1
 
     except (TypeError, FileNotFoundError):
         print("Incorrect source or target path... please try again.")
+
+    print(f"Script done! Your analtyics are: \n{analytics}")
