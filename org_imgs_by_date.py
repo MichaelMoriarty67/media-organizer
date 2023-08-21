@@ -184,26 +184,39 @@ if __name__ == "__main__":
                 target_file_path = child_output_dir / new_file_name
 
                 _copy_binary_file(source_file_path, target_file_path)
+                if target_file_path.exists():
+                    date_as_unix_seconds = int(date.timestamp())
+
+                    os.utime(
+                        target_file_path, (date_as_unix_seconds, date_as_unix_seconds)
+                    )
+
                 analytics.images += 1
 
             except UnidentifiedFromImg as e:
                 date = file_date_from_os(e.get_path())
-
                 child_output_dir = _prep_child_ouput_dir(target_path, date)
 
                 file_name = (
                     _format_datetime(date) + "." + _get_file_type(e.get_path().name)
                 )
                 target_file_path = child_output_dir / file_name
-
                 _copy_binary_file(e.get_path(), target_file_path)
+
+                if target_file_path.exists():
+                    date_as_unix_seconds = int(date.timestamp())
+
+                    os.utime(
+                        target_file_path, (date_as_unix_seconds, date_as_unix_seconds)
+                    )
+
                 if e.file_type() in VID_FORMATS:
                     analytics.videos += 1
 
                 else:
                     analytics.unidentified += 1
 
+        print(f"Script done! Your analtyics are: \n\n{analytics}")
+
     except (TypeError, FileNotFoundError):
         print("Incorrect source or target path... please try again.")
-
-    print(f"Script done! Your analtyics are: \n{analytics}")
