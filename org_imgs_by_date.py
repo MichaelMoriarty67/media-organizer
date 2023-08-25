@@ -33,9 +33,7 @@ class UnidentifiedFromImg(Exception):
         return file_type
 
     def get_path(self):
-        path = (
-            self.path if type(self.path) == "Path" else Path(self.path)
-        )  # type(self.path) isn't path even when passed in a path obj
+        path = self.path if isinstance(self.path, Path) else Path(self.path)
         return path
 
 
@@ -170,17 +168,13 @@ def main(source_file_path: Path, target_path: Path, date: datetime):
     child_output_dir = _prep_child_ouput_dir(target_path, date)
 
     # format full file name
-    new_file_name = (
-        _format_datetime(date) + "." + _get_file_type(source_file_path)
-    )  # double check this works on source_file_path
+    new_file_name = _format_datetime(date) + "." + _get_file_type(source_file_path)
 
     # build target file path
     target_file_path = child_output_dir / new_file_name
 
     # copy file from source file to target file
-    _copy_binary_file(
-        source_file_path.parent(), target_file_path
-    )  # TODO: calling parent() isn't working. fix this.
+    _copy_binary_file(source_file_path, target_file_path)
 
     # modify creation date on new file to it's original creation date
     if target_file_path.exists():
@@ -194,64 +188,32 @@ if __name__ == "__main__":
 
     analytics = Analytics()
 
-    # try:
-    source_path = Path(SOURCE_DIR)
-    target_path = Path(TARGET_DIR)
+    try:
+        source_path = Path(SOURCE_DIR)
+        target_path = Path(TARGET_DIR)
 
-    for file in os.listdir(source_path):
-        # TODO: Clean up redundant code in try and except blocks
+        for file in os.listdir(source_path):
+            try:
+                source_file_path = source_path / file
+                date = determine_date(source_file_path)
 
-        try:
-            # # construct source file path &  find it's date
-            source_file_path = source_path / file
-            date = determine_date(source_file_path)
+                main(source_file_path, target_path, date)
 
-            # # construct MM/YY dir structure in target root dir
-            # child_output_dir = _prep_child_ouput_dir(target_path, date)
+                analytics.images += 1
 
-            # new_file_name = _format_datetime(date) + "." + _get_file_type(file)
-            # target_file_path = child_output_dir / new_file_name
+            except UnidentifiedFromImg as e:
+                date = file_date_from_os(e.get_path())
 
-            # _copy_binary_file(source_file_path, target_file_path)
-            # if target_file_path.exists():
-            #     date_as_unix_seconds = int(date.timestamp())
+                main(e.get_path(), target_path, date)
 
-            #     os.utime(
-            #         target_file_path, (date_as_unix_seconds, date_as_unix_seconds)
-            #     )
+                if e.file_type() in VID_FORMATS:
+                    analytics.videos += 1
 
-            main(source_file_path, target_path, date)
+                else:
+                    analytics.unidentified += 1
 
-            analytics.images += 1
+        print(f"Script done! Your analtyics are: \n\n{analytics}")
 
-        except UnidentifiedFromImg as e:
-            date = file_date_from_os(e.get_path())
-
-            # child_output_dir = _prep_child_ouput_dir(target_path, date)
-
-            # file_name = (
-            #     _format_datetime(date) + "." + _get_file_type(e.get_path().name)
-            # )
-            # target_file_path = child_output_dir / file_name
-            # _copy_binary_file(e.get_path(), target_file_path)
-
-            # if target_file_path.exists():
-            #     date_as_unix_seconds = int(date.timestamp())
-
-            #     os.utime(
-            #         target_file_path, (date_as_unix_seconds, date_as_unix_seconds)
-            #     )
-
-            main(e.get_path(), target_path, date)
-
-            if e.file_type() in VID_FORMATS:
-                analytics.videos += 1
-
-            else:
-                analytics.unidentified += 1
-
-    print(f"Script done! Your analtyics are: \n\n{analytics}")
-
-    # except (TypeError, FileNotFoundError) as e:
-    #     print("Incorrect source or target path... please try again.")
-    #     print(e)
+    except (TypeError, FileNotFoundError) as e:
+        print("Incorrect source or target path... please try again.")
+        print(e)
