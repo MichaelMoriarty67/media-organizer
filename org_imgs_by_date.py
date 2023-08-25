@@ -192,7 +192,9 @@ if __name__ == "__main__":
         source_path = Path(SOURCE_DIR)
         target_path = Path(TARGET_DIR)
 
-        for file in os.listdir(source_path):
+        total_files = len(os.listdir(source_path))
+
+        for index, file in enumerate(os.listdir(source_path), start=1):
             try:
                 source_file_path = source_path / file
                 date = determine_date(source_file_path)
@@ -211,6 +213,8 @@ if __name__ == "__main__":
 
                 else:
                     analytics.unidentified += 1
+
+            print(f"Progress: {index}/{total_files} files", end="\r")
 
         print(f"Script done! Your analtyics are: \n\n{analytics}")
 
