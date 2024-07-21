@@ -2,9 +2,11 @@ import sys
 import os
 from datetime import datetime
 from PIL import Image, UnidentifiedImageError
-from PIL.ExifTags import Base, TAGS
+from PIL.ExifTags import TAGS
 from pathlib import Path
-import pyheif
+from pillow_heif import register_heif_opener
+
+register_heif_opener()
 
 SOURCE_DIR = sys.argv[1] if len(sys.argv) > 2 else None
 TARGET_DIR = sys.argv[2] if len(sys.argv) > 2 else None
@@ -58,21 +60,7 @@ def file_date_from_img(file_path: Path) -> datetime:
     img = None
 
     try:
-        if _get_file_type(file_path.name) == "heic":
-            img_heif = pyheif.read(file_path)
-
-            img = Image.frombytes(
-                img_heif.mode,
-                img_heif.size,
-                img_heif.data,
-                "raw",
-                img_heif.mode,
-                img_heif.stride,
-            )
-
-            # TODO: extract exif data from .heic file
-        else:
-            img = Image.open(file_path)
+        img = Image.open(file_path)
 
     except UnidentifiedImageError:
         raise UnidentifiedFromImg(file_path)
@@ -108,7 +96,7 @@ def _get_exif_names(exif):
     return new_dict
 
 
-def _get_file_type(file_path: str or Path) -> str:
+def _get_file_type(file_path: str | Path) -> str:
     if isinstance(file_path, Path):
         file_path = file_path.name
 
