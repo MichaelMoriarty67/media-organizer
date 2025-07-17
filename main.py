@@ -1,14 +1,18 @@
 import sys
 import os
 from datetime import datetime
+from typing import List
+
 from PIL import Image, UnidentifiedImageError
 from PIL.ExifTags import TAGS
 from pathlib import Path
 from pillow_heif import register_heif_opener
 
+from spam_detection import is_screenshot, run_review_spam_images_app
+
 register_heif_opener()
 
-SOURCE_DIR = sys.argv[1] if len(sys.argv) > 2 else None
+SOURCE_DIR = sys.argv[1] if len(sys.argv) > 1 else None
 TARGET_DIR = sys.argv[2] if len(sys.argv) > 2 else None
 
 VID_FORMATS = ["mov", "mp4"]
@@ -57,7 +61,6 @@ def file_date_from_os(file_path: Path) -> datetime:
 def file_date_from_img(file_path: Path) -> datetime:
     """Determine the file creation date for images."""
     creation_timestamp = None
-    img = None
 
     try:
         img = Image.open(file_path)
@@ -79,6 +82,9 @@ def file_date_from_img(file_path: Path) -> datetime:
             ):  # compare to earliest date
                 creation_timestamp = date
 
+    if creation_timestamp is None:
+        creation_timestamp = file_date_from_os(file_path)
+
     return creation_timestamp
 
 
@@ -89,7 +95,7 @@ def _get_exif_names(exif):
 
     for k, v in exif.items():
         hex_k = int(hex(k), 16)
-        name_k = TAGS[hex_k]
+        name_k = TAGS.get(hex_k, hex_k)
 
         new_dict[name_k] = v
 
@@ -119,10 +125,10 @@ def _copy_binary_file(
 def determine_date(file_path: Path) -> datetime:
     """Given a file, determines its creation date."""
     date = file_date_from_os(file_path)
-    img_date = file_date_from_img(file_path)
+    date_from_image = file_date_from_img(file_path)
 
-    if img_date is not None and img_date < date:
-        date = img_date
+    if date_from_image is not None and date_from_image < date:
+        date = date_from_image
 
     return date
 
@@ -141,17 +147,12 @@ def _prep_child_ouput_dir(root_output_dir: Path, date: datetime) -> Path:
     month_path = year_path / str(date.month)
 
     # create target dir's if they don't exist
-    if not year_path.is_dir():
-        year_path.mkdir()
-        month_path.mkdir()
-
-    if not month_path.is_dir():
-        month_path.mkdir()
+    month_path.mkdir(parents=True, exist_ok=True)
 
     return month_path
 
 
-def main(source_file_path: Path, target_path: Path, date: datetime):
+def move_file(source_file_path: Path, target_path: Path, date: datetime) -> Path:
     # build output directory structure and get output dir path
     child_output_dir = _prep_child_ouput_dir(target_path, date)
 
@@ -170,11 +171,14 @@ def main(source_file_path: Path, target_path: Path, date: datetime):
 
         os.utime(target_file_path, (date_as_unix_seconds, date_as_unix_seconds))
 
+    return target_file_path
+
 
 if __name__ == "__main__":
     print("WELCOME TO PICTURE ORGANIZER 7000.\n")
 
     analytics = Analytics()
+    spam_candidates: List[Path] = []
 
     try:
         source_path = Path(SOURCE_DIR)
@@ -185,16 +189,22 @@ if __name__ == "__main__":
         for index, file in enumerate(os.listdir(source_path), start=1):
             try:
                 source_file_path = source_path / file
+                original_file_path_str = str(source_file_path)
                 date = determine_date(source_file_path)
 
-                main(source_file_path, target_path, date)
+                new_file_path = move_file(source_file_path, target_path, date)
+                if is_screenshot(original_file_path_str):
+                    spam_candidates.append(new_file_path)
 
                 analytics.images += 1
 
             except UnidentifiedFromImg as e:
+                original_file_path_str = str(e.get_path())
                 date = file_date_from_os(e.get_path())
 
-                main(e.get_path(), target_path, date)
+                new_file_path = move_file(e.get_path(), target_path, date)
+                if is_screenshot(original_file_path_str):
+                    spam_candidates.append(new_file_path)
 
                 if e.file_type() in VID_FORMATS:
                     analytics.videos += 1
@@ -205,6 +215,9 @@ if __name__ == "__main__":
             print(f"Progress: {index}/{total_files} files", end="\r")
 
         print(f"Script done! Your analtyics are: \n\n{analytics}")
+        yn = input("Would you like to review potential screenshots? (y/n)")
+        if yn == "y":
+            run_review_spam_images_app(spam_candidates)
 
     except (TypeError, FileNotFoundError) as e:
         print("Incorrect source or target path... please try again.")
